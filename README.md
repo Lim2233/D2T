@@ -91,3 +91,128 @@ D2E的改进版
 - [ ] [cite_start]**全员：** 进行“端到端”冒烟测试，模拟比赛流程：上传 10 份合同 $\rightarrow$ 上传 1 个汇总表模板 $\rightarrow$ 检查填充准确率 [cite: 204]。
 
 **技术提示：** 鉴于你对深度学习架构的关注，在信息抽取模块（负责人 2），建议尝试 **RAG (Retrieval-Augmented Generation)** 模式，即先从解析文本中检索相关段落，再让 LLM 提取，这能显著降低大模型的幻觉（Hallucination）并提升置信度。
+
+
+要实现基于 **Docling**、**Qwen-2.5** 和 **Docxtpl** 的最小可行性产品（MVP），核心逻辑是将非结构化文档转化为 LLM 易读的 Markdown，再通过结构化 Prompt 提取数据，最后映射到 Word 模板中。
+
+以下是详细的执行步骤和代码逻辑架构：
+
+---
+
+### 第一步：环境配置与模型准备
+
+你需要安装核心库。建议在虚拟环境中使用 Python 3.10+。
+
+```bash
+# 安装文档解析引擎
+pip install docling
+# 安装 Word 模板引擎
+pip install docxtpl
+# 建议使用 Ollama 本地运行 Qwen-2.5 (或者使用 API)
+# ollama run qwen2.5:7b
+```
+
+---
+
+### 第二步：使用 Docling 进行高保真解析
+
+Docling 的优势在于它能将复杂的 PDF 或 Word 转换为结构化的 **Markdown**，这对大模型理解表格和层级至关重要。
+
+**执行代码 (parser.py):**
+```python
+from docling.datamodel.base_models import InputFormat
+from docling.document_converter import DocumentConverter
+
+def parse_document(file_path):
+    converter = DocumentConverter()
+    result = converter.convert(file_path)
+    # 将文档转换为 Markdown，这是 LLM 最友好的格式
+    md_content = result.document.export_to_markdown()
+    return md_content
+```
+
+---
+
+### 第三步：利用 Qwen-2.5 进行结构化抽取
+
+为了保证输出能直接用于填表，我们需要强制要求 Qwen 返回 **JSON 格式**。
+
+**Prompt 策略：**
+> “你是一个专业的合同分析助手。请从以下 Markdown 文本中提取信息，并严格以 JSON 格式输出。
+> 需要提取的字段包括：{'project_name': '项目名称', 'amount': '合同金额', 'date': '签署日期'}。
+> 文本内容如下：{md_content}”
+
+**执行逻辑 (extractor.py):**
+```python
+import json
+import requests
+
+def extract_info(text):
+    prompt = f"请从以下文本中提取‘项目名称’、‘合同金额’、‘负责人’。以JSON格式返回：\n\n{text}"
+    
+    # 假设使用 Ollama 本地接口
+    response = requests.post("http://localhost:11434/api/generate", 
+                             json={
+                                 "model": "qwen2.5:7b",
+                                 "prompt": prompt,
+                                 "stream": False,
+                                 "format": "json" # 强制 JSON 输出
+                             })
+    return json.loads(response.json()['response'])
+```
+
+---
+
+### 第四步：使用 Docxtpl 自动化填表
+
+在 Word 模板（template.docx）中，你需要使用 Jinja2 语法设置占位符，例如 `{{ project_name }}`。
+
+**执行代码 (generator.py):**
+```python
+from docxtpl import DocxTemplate
+
+def fill_template(data, template_path, output_path):
+    doc = DocxTemplate(template_path)
+    # data 为上一步获取的 JSON 字典
+    doc.render(data)
+    doc.save(output_path)
+```
+
+---
+
+### 第五步：串联自动化流水线 (MVP 主程序)
+
+将上述环节链接成一个完整的自动化流程。
+
+```python
+def run_mvp_pipeline(input_file, template_file):
+    print("🚀 正在解析文档...")
+    raw_text = parse_document(input_file)
+    
+    print("🧠 正在提取关键信息...")
+    extracted_data = extract_info(raw_text)
+    print(f"提取结果: {extracted_data}")
+    
+    print("📝 正在生成结构化文档...")
+    output_name = f"result_{extracted_data.get('project_name', 'output')}.docx"
+    fill_template(extracted_data, template_file, output_name)
+    
+    print(f"✅ 完成！文件已保存为: {output_name}")
+
+# 执行示例
+# run_mvp_pipeline("contract_v1.pdf", "standard_template.docx")
+```
+
+---
+
+### TODO List：从 MVP 到进阶
+
+1.  **模板定义：** 创建一个包含 `{{ amount }}` 等占位符的 `template.docx` 作为测试样张。
+2.  **Prompt 优化：** 针对“金额单位”（元/万元）编写清洗逻辑，确保 Qwen 输出的格式统一。
+3.  **置信度校验：** 在 JSON 中要求 Qwen 输出一个 `confidence` 字段，对于低于 0.8 的结果标记为“人工待审核”。
+4.  **异常处理：** 增加对 Docling 解析失败（如加密 PDF）的错误捕获。
+5.  **批量处理：** 使用 `os.listdir` 实现文件夹内所有文档的自动循环处理。
+
+
+
+你打算先从哪种类型的文档（如技术标书、财务报表或法律合同）开始进行第一次端到端测试？
