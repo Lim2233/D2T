@@ -1,3 +1,4 @@
 testrun/
 venv/
 output/
+__pycache__/
