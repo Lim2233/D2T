@@ -2,3 +2,5 @@ testrun/
 venv/
 output/
 __pycache__/
+input/
+temp/
