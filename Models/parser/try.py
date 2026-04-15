@@ -1,10 +1,10 @@
 # 作为模块使用
 from docling_batch_converter import DocumentMarkdownConverter
 
-#填写地址即可转换所有文件
+#填写文件夹地址即可转换所有文件
 converter = DocumentMarkdownConverter(
-    input_dir=r"testrun\test-parser\docus",
-    output_dir=r"output",
+    input_dir=r"testrun\Docling-project\testSet001\dataSet",
+    output_dir=r"testrun\Docling-project\testSet001\output",
     recursive=True,
     extensions=(".docx", ".md", ".txt", ".xlsx")
 )
