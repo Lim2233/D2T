@@ -1,6 +1,8 @@
 """
 docling_batch_converter.py
 批量文档转 Markdown（模块化设计，支持扩展处理器）
+
+CLI用法为 python <脚本名> <输入文件夹> <md文件保存文件夹>
 """
 
 import logging
@@ -136,7 +138,7 @@ class DocumentMarkdownConverter:
         self,
         input_dir: Optional[Path] = None,
         output_dir: Optional[Path] = None,
-        extensions: Tuple[str, ...] = ('.docx', '.xlsx', '.md', '.txt'),
+        extensions: Tuple[str, ...] = ('.docx', '.md', '.txt'),   # 固定扩展名
         recursive: bool = False,
         overwrite: bool = True,
         encoding: str = "utf-8",
@@ -327,7 +329,7 @@ class DocumentMarkdownConverter:
 def batch_convert_to_markdown(
     input_dir: str,
     output_dir: str,
-    extensions: Tuple[str, ...] = ('.docx', '.xlsx', '.md', '.txt')
+    extensions: Tuple[str, ...] = ('.docx', '.md', '.txt')   # 固定扩展名
 ) -> Dict[str, int]:
     """
     原始函数风格的批量转换（向后兼容）
@@ -352,24 +354,27 @@ def batch_convert_to_markdown(
 if __name__ == '__main__':
     import argparse
 
-    parser = argparse.ArgumentParser(description="批量文档转 Markdown")
-    parser.add_argument("--input", "-i", required=True, help="输入目录")
-    parser.add_argument("--output", "-o", required=True, help="输出目录")
-    parser.add_argument("--extensions", "-e", nargs="+", default=[".docx", ".xlsx", ".md", ".txt"],
-                        help="处理的扩展名（默认 .docx .xlsx .md .txt）")
+    parser = argparse.ArgumentParser(
+        description="批量文档转 Markdown（固定处理 .docx, .md, .txt 文件）"
+    )
+    parser.add_argument("input", help="输入文件夹路径")
+    parser.add_argument("output", help="md 文件保存文件夹路径")
     parser.add_argument("--recursive", "-r", action="store_true", help="递归搜索子目录")
     parser.add_argument("--no-overwrite", action="store_true", help="不覆盖已存在的输出文件")
     parser.add_argument("--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"],
-                        help="日志级别")
+                        help="日志级别（默认 INFO）")
 
     args = parser.parse_args()
 
-    logging.basicConfig(level=getattr(logging, args.log_level), format="%(asctime)s - %(levelname)s - %(message)s")
+    logging.basicConfig(
+        level=getattr(logging, args.log_level),
+        format="%(asctime)s - %(levelname)s - %(message)s"
+    )
 
     converter = DocumentMarkdownConverter(
         input_dir=Path(args.input),
         output_dir=Path(args.output),
-        extensions=tuple(args.extensions),
+        extensions=('.docx', '.md', '.txt'),          # 固定扩展名
         recursive=args.recursive,
         overwrite=not args.no_overwrite,
     )

@@ -4,10 +4,10 @@ md_semantic_slicer.py
 对指定输入目录中的所有 .md 文件进行语义切分。
 - 优先按段落（空行分隔）拆分，确保段落边界不被合并。
 - 对超过 1000 字符的段落进一步按句子切分。
-- 所有切片统一编号，保存为单个 JSON 文件，格式为 [{"id": 1, "text": "..."}, ...]。
+- 所有切片统一编号，保存为单个 JSON 文件（固定命名为 sliced.json），格式为 [{"id": 1, "text": "..."}, ...]。
 
 用法:
-    python md_semantic_slicer.py <输入目录> <输出目录>
+    python md_semantic_slicer.py <输入文件夹> <JSON文件保存文件夹>
 """
 
 import os
@@ -155,7 +155,7 @@ def process_markdown_files(input_dir: str, output_dir: str, max_len: int = 1000)
                 })
                 global_id += 1
 
-    # 输出 JSON
+    # 输出 JSON（固定命名为 sliced.json）
     output_path = os.path.join(output_dir, "sliced.json")
     with open(output_path, 'w', encoding='utf-8') as f:
         json.dump(all_slices, f, ensure_ascii=False, indent=2)
@@ -166,7 +166,7 @@ def process_markdown_files(input_dir: str, output_dir: str, max_len: int = 1000)
 # ---------- 命令行入口 ----------
 if __name__ == "__main__":
     if len(sys.argv) != 3:
-        print("用法: python md_semantic_slicer.py <输入目录> <输出目录>")
+        print("用法: python md_semantic_slicer.py <输入文件夹> <JSON文件保存文件夹>")
         sys.exit(1)
 
     input_dir = sys.argv[1]

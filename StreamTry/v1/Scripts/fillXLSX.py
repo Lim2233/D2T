@@ -5,11 +5,6 @@ import logging
 import argparse
 from openpyxl import load_workbook
 
-"""
-修改脚本呢使得CLI用法为python <脚本名称> <数据文件夹> <模板文件夹> <输出文件夹>
-"""
-
-
 # 配置日志格式
 logging.basicConfig(
     level=logging.INFO,
@@ -27,7 +22,6 @@ def fill_table_from_json(worksheet, column_names, json_data, start_row=2):
     :param json_data:    JSON 数据列表，每个元素为字典
     :param start_row:    数据填充的起始行号，默认为 2
     """
-    # 建立列索引 → 字段名的映射
     col_key_map = {
         idx: name for idx, name in enumerate(column_names, start=1) if name is not None
     }
@@ -40,28 +34,28 @@ def fill_table_from_json(worksheet, column_names, json_data, start_row=2):
 
 
 class ExcelFiller:
-    """Excel 数据填充器，支持批处理文件夹内所有 .xlsx 文件"""
+    """单个 Excel 文件填充器"""
 
     def __init__(
         self,
         json_path,
-        input_folder,
-        output_folder,
+        template_path,
+        output_path,
         sheet_name=None,
         header_row=1,
         start_row=2
     ):
         """
         :param json_path:     JSON 数据文件路径
-        :param input_folder:  输入 Excel 文件夹路径
-        :param output_folder: 输出文件夹路径
+        :param template_path: Excel 模板文件路径
+        :param output_path:   输出 Excel 文件路径
         :param sheet_name:    要处理的工作表名称，None 表示使用活动工作表
         :param header_row:    列名所在行号（从 1 开始）
         :param start_row:     数据填充的起始行号
         """
         self.json_path = json_path
-        self.input_folder = input_folder
-        self.output_folder = output_folder
+        self.template_path = template_path
+        self.output_path = output_path
         self.sheet_name = sheet_name
         self.header_row = header_row
         self.start_row = start_row
@@ -80,54 +74,32 @@ class ExcelFiller:
                 raise
         return self._json_data
 
-    def process_file(self, file_path):
-        """处理单个 Excel 文件"""
-        file_name = os.path.basename(file_path)
-        output_path = os.path.join(self.output_folder, file_name)
-
+    def run(self):
+        """执行填充操作"""
         try:
-            wb = load_workbook(file_path, data_only=True)
+            wb = load_workbook(self.template_path, data_only=True)
             ws = wb[self.sheet_name] if self.sheet_name else wb.active
 
             # 读取指定行的列名
             header_cells = list(ws.iter_rows(min_row=self.header_row, max_row=self.header_row, values_only=True))
             if not header_cells:
-                logger.warning(f"文件 {file_name} 第 {self.header_row} 行为空，跳过")
+                logger.warning(f"模板文件 {self.template_path} 第 {self.header_row} 行为空，跳过")
                 wb.close()
                 return
 
-            column_names = header_cells[0]  # 取第一行（其实只有一行）
-
-            # 获取 JSON 数据（已缓存）
+            column_names = header_cells[0]
             json_data = self.load_json()
 
-            # 填充数据
             fill_table_from_json(ws, column_names, json_data, start_row=self.start_row)
 
-            # 保存
-            wb.save(output_path)
-            logger.info(f"已填充并保存：{output_path}")
+            # 确保输出目录存在
+            os.makedirs(os.path.dirname(self.output_path), exist_ok=True)
+            wb.save(self.output_path)
+            logger.info(f"已填充并保存：{self.output_path}")
 
             wb.close()
         except Exception as e:
-            logger.error(f"处理文件 '{file_name}' 时出错：{e}")
-
-    def run(self):
-        """执行批处理"""
-        # 确保输出文件夹存在
-        os.makedirs(self.output_folder, exist_ok=True)
-
-        pattern = os.path.join(self.input_folder, "*.xlsx")
-        xlsx_files = glob.glob(pattern)
-
-        if not xlsx_files:
-            logger.warning(f"在文件夹 '{self.input_folder}' 中没有找到 .xlsx 文件。")
-            return
-
-        logger.info(f"找到 {len(xlsx_files)} 个 Excel 文件，开始处理...")
-        for file_path in xlsx_files:
-            self.process_file(file_path)
-        logger.info("所有文件处理完毕。")
+            logger.error(f"处理文件时出错：{e}")
 
 
 def find_single_file(folder, extension, description):
@@ -152,10 +124,10 @@ def find_single_file(folder, extension, description):
 def main():
     """命令行入口"""
     parser = argparse.ArgumentParser(
-        description="根据 JSON 数据批量填充 Excel 模板",
+        description="根据 JSON 数据批量填充 Excel 模板（支持多 JSON 文件）",
         usage="python %(prog)s <数据文件夹> <模板文件夹> <输出文件夹> [选项]"
     )
-    parser.add_argument("data_folder", help="存放 JSON 数据文件的文件夹（仅一个 JSON 文件）")
+    parser.add_argument("data_folder", help="存放 JSON 数据文件的文件夹（可包含多个 .json 文件）")
     parser.add_argument("template_folder", help="存放 Excel 模板的文件夹（仅一个 .xlsx 文件）")
     parser.add_argument("output_folder", help="输出文件夹路径")
     parser.add_argument("--sheet", default=None, help="工作表名称，默认使用活动工作表")
@@ -164,25 +136,42 @@ def main():
 
     args = parser.parse_args()
 
+    # 检查模板文件夹中是否恰好有一个 Excel 模板文件
     try:
-        # 自动探测 JSON 文件和模板文件
-        json_path = find_single_file(args.data_folder, ".json", "JSON 数据")
-        # 注意：ExcelFiller 的 input_folder 就是模板文件夹，它会自动查找其中的 .xlsx 文件
-        # 但我们仍要检查是否恰好有一个 .xlsx 文件，以便提前报错
-        _ = find_single_file(args.template_folder, ".xlsx", "Excel 模板")
+        template_path = find_single_file(args.template_folder, ".xlsx", "Excel 模板")
     except Exception as e:
         logger.error(str(e))
         return
 
-    filler = ExcelFiller(
-        json_path=json_path,
-        input_folder=args.template_folder,
-        output_folder=args.output_folder,
-        sheet_name=args.sheet,
-        header_row=args.header_row,
-        start_row=args.start_row
-    )
-    filler.run()
+    # 获取数据文件夹中所有 JSON 文件
+    json_pattern = os.path.join(args.data_folder, "*.json")
+    json_files = glob.glob(json_pattern)
+
+    if not json_files:
+        logger.error(f"在文件夹 '{args.data_folder}' 中未找到任何 JSON 文件。")
+        return
+
+    logger.info(f"找到 {len(json_files)} 个 JSON 文件，将依次处理...")
+
+    # 确保输出文件夹存在
+    os.makedirs(args.output_folder, exist_ok=True)
+
+    for json_path in json_files:
+        # 根据 JSON 文件名生成输出文件名（将扩展名改为 .xlsx）
+        base_name = os.path.splitext(os.path.basename(json_path))[0]
+        output_path = os.path.join(args.output_folder, f"{base_name}.xlsx")
+
+        filler = ExcelFiller(
+            json_path=json_path,
+            template_path=template_path,
+            output_path=output_path,
+            sheet_name=args.sheet,
+            header_row=args.header_row,
+            start_row=args.start_row
+        )
+        filler.run()
+
+    logger.info("所有文件处理完毕。")
 
 
 if __name__ == "__main__":
