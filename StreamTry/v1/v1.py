@@ -19,16 +19,25 @@ class CONFIG:
     INDATA=r"StreamTry/v1/input/dataRaw"
     INTEM=r"StreamTry/v1/input/template"
     INUSER=r"StreamTry/v1/input/userInput"
+    
     OUTPUT=r"StreamTry/v1/output"
-    TEMPTIME=r"StreamTry/v1/temp/timeJSON"
+    
+    TEMPTIME=r"StreamTry/v1/temp/time"
     TEMPXLSX=r"StreamTry/v1/temp/XLSX"
     TEMPXLSX2=r"StreamTry/v1/temp/XLSX2"
-    TFILL=r"StreamTry/v1/temp/fill"
+    
+    TEMPMD=r"StreamTry/v1/temp/md"
+    
+    TEMPFILL=r"StreamTry/v1/temp/fill"
     #脚本
     FEXTRACTIME=r"StreamTry/v1/Scripts/extractTime.py"
     FCUTTIMEXLSX=r"StreamTry/v1/Scripts/cutTimeXLSX.py"
     FCUTCOLUMNXLSX=r"StreamTry/v1/Scripts/cutColumnXLSX.py"
     FFILLXLSX=r"StreamTry/v1/Scripts/fillXLSX.py"
+    FXLSX2JSON=r"StreamTry/v1/Scripts/xlsx2JSON.py"
+    FD2MD=r"StreamTry/v1/Scripts/d2md.py"
+    FMD2JSON=r"StreamTry/v1/Scripts/md2JSON.py"
+    
     pass
 
 config= CONFIG()
@@ -48,6 +57,10 @@ def main():
     f(config.FEXTRACTIME,config.INUSER,config.TEMPTIME)
     f(config.FCUTTIMEXLSX,config.INDATA,config.TEMPTIME,config.TEMPXLSX)
     f(config.FCUTCOLUMNXLSX,config.TEMPXLSX,config.INTEM,config.TEMPXLSX2)
+    f(config.FXLSX2JSON,config.TEMPXLSX2,config.TEMPFILL)
+    
+    # f(config.FD2MD)
+    # f(config.FMD2JSON)
     
     
     f(config.FFILLXLSX,config.TEMPFILL,config.INTEM,config.OUTPUT)
