@@ -14,51 +14,43 @@ xlsx 先清洗 再转md
 """
 
 
-# 作为模块使用
-from parserD import DocumentMarkdownConverter
-import os
-from parserX import extract_columns_by_template
-
 class CONFIG:
     #文件夹
-    DATARAW=r"StreamTry/v1/input/dataRaw"
-    TEMPLATE=r"StreamTry/v1/input/template"
-    REQUIRE=r"StreamTry/v1/input/userInput"
+    INDATA=r"StreamTry/v1/input/dataRaw"
+    INTEM=r"StreamTry/v1/input/template"
+    INUSER=r"StreamTry/v1/input/userInput"
     OUTPUT=r"StreamTry/v1/output"
-    TEMP=r"StreamTry/v1/temp"
-    TREQUIRE=r"StreamTry/v1/temp/requirement"
-    TMD=r"StreamTry/v1/temp/dmd"
-    TXL=r"StreamTry/v1/temp/dxl"
-    TPROCESSED=r"StreamTry/v1/temp/JSON/processed"
-    TEMPRAG=r"StreamTry/v1/temp/RAG"
+    TEMPTIME=r"StreamTry/v1/temp/timeJSON"
+    TEMPXLSX=r"StreamTry/v1/temp/XLSX"
+    TEMPXLSX2=r"StreamTry/v1/temp/XLSX2"
     TFILL=r"StreamTry/v1/temp/fill"
     #脚本
-    TIME=r"StreamTry/v1/Scripts/extractTime.py"
-    CUTTIMEXLSX=r""
+    FEXTRACTIME=r"StreamTry/v1/Scripts/extractTime.py"
+    FCUTTIMEXLSX=r"StreamTry/v1/Scripts/cutTimeXLSX.py"
+    FCUTCOLUMNXLSX=r"StreamTry/v1/Scripts/cutColumnXLSX.py"
+    FFILLXLSX=r"StreamTry/v1/Scripts/fillXLSX.py"
     pass
 
 config= CONFIG()
 
-def paserDataRaw():
-    
-    converter = DocumentMarkdownConverter(
-        input_dir=config.DATARAW,
-        output_dir=config.TMD,
-        recursive=True,
-        extensions=(".docx", ".md", ".txt")
-    )
+import os
 
-    stats = converter.convert(
-        on_file_success=lambda src, dst: print(f"完成: {src} -> {dst}")
-    )
-    print(f"成功: {stats.success}, 失败: {stats.failed}")
-    
+def f(*args: str):
+    """
+    将任意数量的字符串参数按顺序用空格连接，并在前面加上 "python "。
 
+    参数:
+        *args: 可变长度的字符串参数
+    """
+    os.system("python " + " ".join(args))
 
 def main():
+    f(config.FEXTRACTIME,config.INUSER,config.TEMPTIME)
+    f(config.FCUTTIMEXLSX,config.INDATA,config.TEMPTIME,config.TEMPXLSX)
+    f(config.FCUTCOLUMNXLSX,config.TEMPXLSX,config.INTEM,config.TEMPXLSX2)
     
-    paserDataRaw()
     
+    f(config.FFILLXLSX,config.TEMPFILL,config.INTEM,config.OUTPUT)
     pass
 
 
