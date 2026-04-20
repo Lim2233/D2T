@@ -33,73 +33,26 @@ def fill_table_from_json(worksheet, column_names, json_data, start_row=2):
                 worksheet.cell(row=row_idx, column=col_idx, value=record[key])
 
 
-class ExcelFiller:
-    """单个 Excel 文件填充器"""
+def merge_json_data(json_files):
+    """
+    读取多个 JSON 文件并将数据合并为一个列表
 
-    def __init__(
-        self,
-        json_path,
-        template_path,
-        output_path,
-        sheet_name=None,
-        header_row=1,
-        start_row=2
-    ):
-        """
-        :param json_path:     JSON 数据文件路径
-        :param template_path: Excel 模板文件路径
-        :param output_path:   输出 Excel 文件路径
-        :param sheet_name:    要处理的工作表名称，None 表示使用活动工作表
-        :param header_row:    列名所在行号（从 1 开始）
-        :param start_row:     数据填充的起始行号
-        """
-        self.json_path = json_path
-        self.template_path = template_path
-        self.output_path = output_path
-        self.sheet_name = sheet_name
-        self.header_row = header_row
-        self.start_row = start_row
-
-        self._json_data = None
-
-    def load_json(self):
-        """加载 JSON 数据，并缓存"""
-        if self._json_data is None:
-            try:
-                with open(self.json_path, 'r', encoding='utf-8') as f:
-                    self._json_data = json.load(f)
-                logger.info(f"成功加载 JSON 数据，共 {len(self._json_data)} 条记录")
-            except Exception as e:
-                logger.error(f"读取 JSON 文件失败：{e}")
-                raise
-        return self._json_data
-
-    def run(self):
-        """执行填充操作"""
+    :param json_files: JSON 文件路径列表
+    :return: 合并后的数据列表
+    """
+    merged = []
+    for json_path in json_files:
         try:
-            wb = load_workbook(self.template_path, data_only=True)
-            ws = wb[self.sheet_name] if self.sheet_name else wb.active
-
-            # 读取指定行的列名
-            header_cells = list(ws.iter_rows(min_row=self.header_row, max_row=self.header_row, values_only=True))
-            if not header_cells:
-                logger.warning(f"模板文件 {self.template_path} 第 {self.header_row} 行为空，跳过")
-                wb.close()
-                return
-
-            column_names = header_cells[0]
-            json_data = self.load_json()
-
-            fill_table_from_json(ws, column_names, json_data, start_row=self.start_row)
-
-            # 确保输出目录存在
-            os.makedirs(os.path.dirname(self.output_path), exist_ok=True)
-            wb.save(self.output_path)
-            logger.info(f"已填充并保存：{self.output_path}")
-
-            wb.close()
+            with open(json_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            if isinstance(data, list):
+                merged.extend(data)
+                logger.info(f"加载 {os.path.basename(json_path)}：{len(data)} 条记录")
+            else:
+                logger.warning(f"文件 {json_path} 内容不是列表，跳过")
         except Exception as e:
-            logger.error(f"处理文件时出错：{e}")
+            logger.error(f"读取 JSON 文件 {json_path} 失败：{e}")
+    return merged
 
 
 def find_single_file(folder, extension, description):
@@ -124,7 +77,7 @@ def find_single_file(folder, extension, description):
 def main():
     """命令行入口"""
     parser = argparse.ArgumentParser(
-        description="根据 JSON 数据批量填充 Excel 模板（支持多 JSON 文件）",
+        description="根据多个 JSON 数据文件合并后填充单个 Excel 模板",
         usage="python %(prog)s <数据文件夹> <模板文件夹> <输出文件夹> [选项]"
     )
     parser.add_argument("data_folder", help="存放 JSON 数据文件的文件夹（可包含多个 .json 文件）")
@@ -133,6 +86,7 @@ def main():
     parser.add_argument("--sheet", default=None, help="工作表名称，默认使用活动工作表")
     parser.add_argument("--header-row", type=int, default=1, help="列名所在行号，默认 1")
     parser.add_argument("--start-row", type=int, default=2, help="数据填充起始行号，默认 2")
+    parser.add_argument("--output-name", default=None, help="输出文件名（不含路径），默认基于模板名生成")
 
     args = parser.parse_args()
 
@@ -151,27 +105,53 @@ def main():
         logger.error(f"在文件夹 '{args.data_folder}' 中未找到任何 JSON 文件。")
         return
 
-    logger.info(f"找到 {len(json_files)} 个 JSON 文件，将依次处理...")
+    logger.info(f"找到 {len(json_files)} 个 JSON 文件，开始合并数据...")
+
+    # 合并所有 JSON 数据
+    merged_data = merge_json_data(json_files)
+    if not merged_data:
+        logger.warning("合并后的数据为空，将生成空白输出文件。")
+    logger.info(f"合并完成，共 {len(merged_data)} 条记录。")
+
+    # 确定输出文件名
+    if args.output_name:
+        output_filename = args.output_name
+    else:
+        base = os.path.splitext(os.path.basename(template_path))[0]
+        output_filename = f"{base}_filled.xlsx"
+
+    output_path = os.path.join(args.output_folder, output_filename)
 
     # 确保输出文件夹存在
     os.makedirs(args.output_folder, exist_ok=True)
 
-    for json_path in json_files:
-        # 根据 JSON 文件名生成输出文件名（将扩展名改为 .xlsx）
-        base_name = os.path.splitext(os.path.basename(json_path))[0]
-        output_path = os.path.join(args.output_folder, f"{base_name}.xlsx")
+    # 执行填充
+    try:
+        wb = load_workbook(template_path, data_only=True)
+        ws = wb[args.sheet] if args.sheet else wb.active
 
-        filler = ExcelFiller(
-            json_path=json_path,
-            template_path=template_path,
-            output_path=output_path,
-            sheet_name=args.sheet,
-            header_row=args.header_row,
-            start_row=args.start_row
-        )
-        filler.run()
+        # 读取列名
+        header_cells = list(ws.iter_rows(min_row=args.header_row, max_row=args.header_row, values_only=True))
+        if not header_cells:
+            logger.error(f"模板文件 {template_path} 第 {args.header_row} 行为空，无法处理。")
+            wb.close()
+            return
 
-    logger.info("所有文件处理完毕。")
+        column_names = header_cells[0]
+
+        # 填充数据
+        fill_table_from_json(ws, column_names, merged_data, start_row=args.start_row)
+
+        # 保存
+        wb.save(output_path)
+        logger.info(f"已成功生成文件：{output_path}")
+
+        wb.close()
+    except Exception as e:
+        logger.error(f"处理过程中出错：{e}")
+        return
+
+    logger.info("所有操作完成。")
 
 
 if __name__ == "__main__":
