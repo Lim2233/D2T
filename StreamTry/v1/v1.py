@@ -1,19 +1,3 @@
-
-"""
-
-处理用户需求放在temp/requirement
-首先将数据 dataRaw中的全部
-doc md txt 全部转换成md，存在temp/dmd
-xlsx 先清洗 再转md
-然后将其转化成JSON ，存在temp/JSON/raw
-然后清洗，根据日期进行清洗，存在temp/JSON/processed
-然后进入RAG/存储再temp/RAG/...
-然后处理模板，通过RAG判断相关度清洗然后放在temp/fill
-调用脚本填写
-
-"""
-
-
 class CONFIG:
     #文件夹
     INDATA=r"StreamTry/v1/input/dataRaw"
@@ -54,12 +38,6 @@ import os
 import time
 
 def f(*args: str):
-    """
-    将任意数量的字符串参数按顺序用空格连接，并在前面加上 "python "。
-
-    参数:
-        *args: 可变长度的字符串参数
-    """
     os.system("python " + " ".join(args))
 
 def main():
